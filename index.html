@@ -30,10 +30,38 @@
     </style>
 </head>
 <body class="p-4 md:p-8">
+    
+    <!-- แถบสรุปภาพรวมงาน (Task Summary Bar) -->
+    <div class="max-w-6xl mx-auto mb-6 bg-white rounded-xl shadow-sm p-4 sm:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-l-4 border-indigo-500">
+        <div class="flex items-center gap-4">
+            <div class="w-12 h-12 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-600 flex-shrink-0">
+                <i class="fas fa-chart-pie text-xl"></i>
+            </div>
+            <div>
+                <h3 class="text-gray-800 font-bold text-lg">ภาพรวมการทำงาน</h3>
+                <p class="text-sm text-gray-500 transition-colors duration-300" id="summary-text">กำลังคำนวณข้อมูล...</p>
+            </div>
+        </div>
+        <div class="flex flex-wrap gap-2 text-sm">
+            <div class="bg-gray-50 border border-gray-200 text-gray-700 px-4 py-2 rounded-lg font-medium flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+                <span class="text-xs sm:text-sm text-gray-500">ทั้งหมด</span>
+                <span class="text-lg font-bold" id="count-total">0</span>
+            </div>
+            <div class="bg-green-50 border border-green-200 text-green-700 px-4 py-2 rounded-lg font-medium flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+                <span class="text-xs sm:text-sm text-green-600/80">เสร็จแล้ว</span>
+                <span class="text-lg font-bold" id="count-done">0</span>
+            </div>
+            <div class="bg-red-50 border border-red-200 text-red-600 px-4 py-2 rounded-lg font-medium flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 shadow-sm">
+                <span class="text-xs sm:text-sm text-red-500/80">ค้างอยู่</span>
+                <span class="text-lg font-bold" id="count-pending">0</span>
+            </div>
+        </div>
+    </div>
+
     <div class="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6">
         
         <!-- ซ้าย: รายการงานวันนี้ -->
-        <div class="lg:col-span-2 bg-white rounded-xl shadow-sm p-6 relative flex flex-col h-[calc(100vh-4rem)] lg:h-[calc(100vh-4rem)]">
+        <div class="lg:col-span-2 bg-white rounded-xl shadow-sm p-6 relative flex flex-col h-[calc(100vh-4rem)] lg:h-[calc(100vh-10rem)]">
             <!-- สถานะการซิงค์ -->
             <div id="sync-status" class="absolute top-6 right-6 text-sm text-indigo-600 hidden bg-indigo-50 px-3 py-1 rounded-full font-medium shadow-sm z-10">
                 <i class="fas fa-sync fa-spin mr-2"></i>กำลังซิงค์...
@@ -41,7 +69,7 @@
 
             <div class="flex flex-col sm:flex-row sm:items-center justify-between mb-6 border-b pb-4 gap-4">
                 <h2 class="text-2xl font-bold text-gray-800 flex items-center gap-2">
-                    <i class="fas fa-clipboard-list text-indigo-500"></i> ตารางเช็คงานแต่ละวัน
+                    <i class="fas fa-clipboard-list text-indigo-500"></i> ตารางเช็คงาน
                 </h2>
                 <div class="flex items-center gap-2">
                     <label for="task-date-picker" class="text-sm font-medium text-gray-600">เลือกวันที่:</label>
@@ -205,10 +233,38 @@
             }
         }
 
+        // อัปเดตแถบสรุปงาน (Summary Bar)
+        function updateSummary() {
+            const total = tasks.length;
+            const done = tasks.filter(t => t.status === 'เรียบร้อย').length;
+            const pending = total - done;
+
+            // อัปเดตตัวเลข
+            document.getElementById('count-total').innerText = total;
+            document.getElementById('count-done').innerText = done;
+            document.getElementById('count-pending').innerText = pending;
+
+            // อัปเดตข้อความให้กำลังใจ
+            const summaryText = document.getElementById('summary-text');
+            if (total === 0) {
+                summaryText.innerHTML = `ยังไม่มีรายการงานสำหรับวันที่ ${currentDate}`;
+                summaryText.className = "text-sm text-gray-500 mt-1";
+            } else if (pending === 0) {
+                summaryText.innerHTML = '<i class="fas fa-party-horn mr-1"></i> ยอดเยี่ยม! คุณจัดการงานวันนี้เสร็จหมดแล้ว';
+                summaryText.className = "text-sm text-green-600 font-medium mt-1";
+            } else {
+                summaryText.innerHTML = `มีงานที่ต้องเคลียร์อีก <b class="text-red-500">${pending} งาน</b> สู้ๆ นะครับ!`;
+                summaryText.className = "text-sm text-gray-600 mt-1";
+            }
+        }
+
         // 3. วาดรายการงานลงหน้าจอ
         function renderTasks() {
             const list = document.getElementById('task-list');
             list.innerHTML = '';
+            
+            // อัปเดตแถบสรุปสถานะทุกครั้งที่วาดใหม่
+            updateSummary();
             
             if (tasks.length === 0) {
                 list.innerHTML = '<div class="text-center text-gray-400 mt-10">ยังไม่มีรายการงาน</div>';
