@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>จัดการงานรายวัน</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Sarabun', sans-serif; background-color: #f3f4f6; }
+        .task-done { text-decoration: line-through; color: #9ca3af; }
+        
+        /* Custom scrollbar */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+    <div class="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        <!-- ซ้าย: รายการงานวันนี้ -->
+        <div class="lg:col-span-2 bg-white rounded-xl shadow-sm p-6 relative flex flex-col h-[calc(100vh-4rem)] lg:h-[calc(100vh-4rem)]">
+            <!-- สถานะการซิงค์ -->
+            <div id="sync-status" class="absolute top-6 right-6 text-sm text-indigo-600 hidden bg-indigo-50 px-3 py-1 rounded-full font-medium shadow-sm z-10">
+                <i class="fas fa-sync fa-spin mr-2"></i>กำลังซิงค์...
+            </div>
+
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between mb-6 border-b pb-4 gap-4">
+                <h2 class="text-2xl font-bold text-gray-800 flex items-center gap-2">
+                    <i class="fas fa-clipboard-list text-indigo-500"></i> ตารางเช็คงานแต่ละวัน
+                </h2>
+                <div class="flex items-center gap-2">
+                    <label for="task-date-picker" class="text-sm font-medium text-gray-600">เลือกวันที่:</label>
+                    <input type="date" id="task-date-picker" class="border border-gray-300 rounded-lg px-3 py-1.5 text-gray-700 focus:ring-indigo-500 focus:border-indigo-500 outline-none shadow-sm cursor-pointer">
+                </div>
+            </div>
+            
+            <!-- ป้ายเตือนกรณี Preview บล็อก (ซ่อนไว้เป็นค่าเริ่มต้น) -->
+            <div id="preview-warning" class="hidden mb-4 bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded shadow-sm">
+                <div class="flex items-start">
+                    <div class="flex-shrink-0"><i class="fas fa-exclamation-triangle text-yellow-500"></i></div>
+                    <div class="ml-3">
+                        <p class="text-sm text-yellow-800 font-medium">หน้าต่าง Preview บล็อกการดึงข้อมูลจาก Google Sheet</p>
+                        <p class="text-sm text-yellow-700 mt-1">
+                            ขณะนี้กำลังแสดงผลด้วย <b>ข้อมูลจำลอง</b> เพื่อให้ทดลองใช้งาน UI ได้<br>
+                            หากต้องการใช้งานจริง ให้ดาวน์โหลดโค้ดนี้เซฟเป็นไฟล์ <code>.html</code> แล้วดับเบิ้ลคลิกเปิดผ่านเครื่องของคุณครับ
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- พื้นที่แสดงรายการงาน -->
+            <div id="task-list" class="space-y-3 flex-grow overflow-y-auto mb-6 pr-2">
+                <div class="flex flex-col items-center justify-center h-full text-gray-400">
+                    <i class="fas fa-spinner fa-spin text-4xl mb-4 text-indigo-300"></i>
+                    <p>กำลังโหลดข้อมูล...</p>
+                </div>
+            </div>
+
+            <!-- ฟอร์มเพิ่มงานใหม่ -->
+            <form id="add-task-form" class="flex gap-2 mt-auto pt-4 border-t">
+                <input type="text" id="new-task-input" placeholder="พิมพ์รายการที่ต้องทำเพิ่มเติม..." class="flex-grow px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all" required>
+                <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-lg font-medium transition-colors flex items-center gap-2 shadow-sm">
+                    <i class="fas fa-plus"></i> <span class="hidden sm:inline">เพิ่มรายการ</span>
+                </button>
+            </form>
+        </div>
+
+        <!-- ขวา: เตรียมของ & บันทึกย่อ -->
+        <div class="space-y-6 flex flex-col h-full">
+            
+            <!-- เตรียมสำหรับพรุ่งนี้ -->
+            <div class="bg-white rounded-xl shadow-sm p-6 flex-1 flex flex-col">
+                <h2 class="text-xl font-bold text-gray-800 mb-4 border-b pb-2 flex items-center gap-2">
+                    <i class="fas fa-box-open text-orange-400"></i> สิ่งที่ต้องเตรียม (พรุ่งนี้)
+                </h2>
+                <div id="tomorrow-list" class="space-y-2 flex-grow overflow-y-auto mb-4">
+                    <!-- รายการเตรียมของ -->
+                </div>
+                <form id="add-tomorrow-form" class="flex gap-2 mt-auto">
+                    <input type="text" id="new-tomorrow-input" placeholder="เพิ่มสิ่งที่ต้องเตรียม..." class="flex-grow px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-400" required>
+                    <button type="submit" class="bg-orange-100 hover:bg-orange-200 text-orange-600 px-3 py-2 rounded-lg transition-colors">
+                        <i class="fas fa-plus"></i>
+                    </button>
+                </form>
+            </div>
+
+            <!-- บันทึกย่อ (Notes) -->
+            <div class="bg-white rounded-xl shadow-sm p-6 flex-1 flex flex-col">
+                <h2 class="text-xl font-bold text-gray-800 mb-4 border-b pb-2 flex items-center gap-2">
+                    <i class="fas fa-sticky-note text-yellow-400"></i> บันทึกย่อ / Note
+                </h2>
+                <textarea id="notes-area" class="w-full flex-grow p-3 bg-yellow-50 border-none rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-yellow-400 text-gray-700 leading-relaxed" placeholder="จดบันทึกเรื่องราวหรือกันลืมไว้ที่นี่..."></textarea>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        // === การเชื่อมต่อ Google Sheets ===
+        const API_URL = 'https://script.google.com/macros/s/AKfycbzWxiMOsk5TxW_axtAmh_nlnaeu04OCF-lHLr-I6VkFBguvkz3M6FSAdsQSyZ2QoPA/exec';
+        let tasks = [];
+        let isUsingMockData = false;
+        let currentDate = ''; // เก็บวันที่ปัจจุบันในรูปแบบ DD/MM/YYYY
+
+        // ฟังก์ชันแปลงรูปแบบวันที่
+        function formatDateToSheet(dateObj) {
+            const day = String(dateObj.getDate()).padStart(2, '0');
+            const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+            const year = dateObj.getFullYear();
+            return `${day}/${month}/${year}`;
+        }
+
+        function formatDateToInput(dateStr) {
+            if(!dateStr) return '';
+            const parts = dateStr.split('/');
+            if(parts.length === 3) return `${parts[2]}-${parts[1]}-${parts[0]}`;
+            return '';
+        }
+
+        // 1. ดึงข้อมูลจาก Sheet (GET)
+        async function fetchTasks() {
+            // แสดงสถานะโหลดระหว่างเปลี่ยนวัน
+            const list = document.getElementById('task-list');
+            list.innerHTML = `
+                <div class="flex flex-col items-center justify-center h-full text-gray-400 mt-10">
+                    <i class="fas fa-spinner fa-spin text-4xl mb-4 text-indigo-300"></i>
+                    <p>กำลังโหลดข้อมูลวันที่ ${currentDate}...</p>
+                </div>`;
+
+            try {
+                // แนบวันที่ไปกับ URL เพื่อให้ Apps Script รู้ว่าเราขอดูของวันไหน
+                const urlWithParams = `${API_URL}?date=${encodeURIComponent(currentDate)}`;
+                const response = await fetch(urlWithParams, {
+                    method: 'GET',
+                    redirect: 'follow'
+                });
+                if (!response.ok) throw new Error('Network response was not ok');
+                
+                tasks = await response.json();
+                
+                // แปลงข้อมูลเก่า (completed: true/false) ให้รองรับระบบใหม่ (status)
+                tasks = tasks.map(t => ({
+                    ...t,
+                    status: t.status || (t.completed ? 'เรียบร้อย' : '')
+                }));
+
+                isUsingMockData = false;
+                document.getElementById('preview-warning').classList.add('hidden');
+                renderTasks();
+            } catch (error) {
+                console.error('Fetch API Error:', error);
+                // หากหน้าต่าง Preview บล็อก (CORS) จะแสดงข้อมูลจำลอง
+                isUsingMockData = true;
+                document.getElementById('preview-warning').classList.remove('hidden');
+                
+                tasks = [
+                    { id: '1', text: `เช็คคู่แม่น (ข้อมูลจำลอง ${currentDate})`, status: 'เรียบร้อย' },
+                    { id: '2', text: 'อัพปกวิเคราะห์บอล', status: 'กำลังทำ' },
+                    { id: '3', text: 'ข่าวบอลเช้า', status: 'รอข้อมูล' },
+                    { id: '4', text: 'อัพปกหนังผู้ใหญ่', status: '' }
+                ];
+                renderTasks();
+            }
+        }
+
+        // 2. ส่งข้อมูลไป Sheet (POST)
+        async function syncTaskWithSheet(action, data) {
+            if (isUsingMockData) return; // หากใช้ข้อมูลจำลอง ไม่ต้องส่งไป Google Sheet
+            
+            const syncStatus = document.getElementById('sync-status');
+            syncStatus.classList.remove('hidden');
+            
+            try {
+                // แนบวันที่ปัจจุบันไปใน Payload เพื่อให้อัปเดตถูกคอลัมน์
+                const payload = { 
+                    action: action, 
+                    date: currentDate, 
+                    data: data 
+                };
+                
+                // ส่งเป็น String ตรงๆ เพื่อไม่ให้เบราว์เซอร์ไปตั้ง Header ที่จะทำให้ติด Preflight
+                await fetch(API_URL, {
+                    method: 'POST',
+                    body: JSON.stringify(payload)
+                });
+            } catch (error) {
+                console.error('Error syncing to sheet:', error);
+            } finally {
+                syncStatus.classList.add('hidden');
+            }
+        }
+
+        // 3. วาดรายการงานลงหน้าจอ
+        function renderTasks() {
+            const list = document.getElementById('task-list');
+            list.innerHTML = '';
+            
+            if (tasks.length === 0) {
+                list.innerHTML = '<div class="text-center text-gray-400 mt-10">ยังไม่มีรายการงาน</div>';
+                return;
+            }
+
+            tasks.forEach(task => {
+                const div = document.createElement('div');
+                
+                // กำหนดสีพื้นหลังและลักษณะข้อความตามสถานะ
+                let statusBg = 'bg-white border-gray-200';
+                let textStyle = 'text-gray-800 font-medium';
+                if (task.status === 'เรียบร้อย') {
+                    statusBg = 'bg-green-50 border-green-200';
+                    textStyle = 'text-gray-400 line-through';
+                } else if (task.status === 'รอข้อมูล') {
+                    statusBg = 'bg-orange-50 border-orange-200';
+                } else if (task.status === 'กำลังทำ') {
+                    statusBg = 'bg-blue-50 border-blue-200';
+                }
+
+                // จัดเลย์เอาต์ให้ยืดหยุ่น (flex-col สำหรับมือถือ, sm:flex-row สำหรับจอใหญ่)
+                div.className = `flex flex-col sm:flex-row sm:items-center justify-between p-3 sm:p-4 rounded-xl transition-all border ${statusBg} hover:shadow-sm group gap-3`;
+                
+                // ฟังก์ชันช่วยสร้าง CSS คลาสสำหรับปุ่ม
+                const getBtnClass = (targetStatus, activeColors) => {
+                    const isActive = task.status === targetStatus;
+                    const baseClass = "px-2 py-1.5 sm:px-3 sm:py-1.5 text-xs sm:text-sm rounded-lg transition-all duration-200 flex items-center gap-1.5 border font-medium";
+                    return isActive 
+                        ? `${baseClass} ${activeColors} shadow-sm scale-105 transform` 
+                        : `${baseClass} bg-white text-gray-500 border-gray-200 hover:bg-gray-100 hover:text-gray-700 opacity-70 hover:opacity-100`;
+                };
+
+                div.innerHTML = `
+                    <div class="flex items-start justify-between flex-grow gap-2">
+                        <span class="text-base sm:text-lg ${textStyle} pt-1 break-words">${task.text}</span>
+                        <!-- ปุ่มลบสำหรับหน้าจอมือถือ -->
+                        <button onclick="deleteTask('${task.id}')" class="sm:hidden text-gray-300 hover:text-red-500 p-2 focus:outline-none" title="ลบงานนี้">
+                            <i class="fas fa-trash-alt"></i>
+                        </button>
+                    </div>
+                    
+                    <div class="flex items-center gap-1.5 flex-wrap justify-start sm:justify-end">
+                        <button onclick="changeTaskStatus('${task.id}', '')" class="${getBtnClass('', 'bg-gray-600 text-white border-gray-700')}">
+                            <i class="fas fa-minus"></i> <span class="hidden sm:inline">ยังไม่เริ่ม</span>
+                        </button>
+                        <button onclick="changeTaskStatus('${task.id}', 'กำลังทำ')" class="${getBtnClass('กำลังทำ', 'bg-blue-500 text-white border-blue-600')}">
+                            <i class="fas fa-spinner"></i> ทำอยู่
+                        </button>
+                        <button onclick="changeTaskStatus('${task.id}', 'รอข้อมูล')" class="${getBtnClass('รอข้อมูล', 'bg-orange-500 text-white border-orange-600')}">
+                            <i class="fas fa-hourglass-half"></i> รอข้อมูล
+                        </button>
+                        <button onclick="changeTaskStatus('${task.id}', 'เรียบร้อย')" class="${getBtnClass('เรียบร้อย', 'bg-green-500 text-white border-green-600')}">
+                            <i class="fas fa-check"></i> เสร็จ
+                        </button>
+                        
+                        <!-- ปุ่มลบสำหรับหน้าจอคอม (โผล่ตอน Hover) -->
+                        <button onclick="deleteTask('${task.id}')" class="hidden sm:flex text-gray-300 hover:text-red-500 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-all w-8 h-8 rounded-full items-center justify-center focus:outline-none ml-2" title="ลบงานนี้">
+                            <i class="fas fa-trash-alt"></i>
+                        </button>
+                    </div>
+                `;
+                list.appendChild(div);
+            });
+        }
+
+        // 4. เปลี่ยนสถานะ (อัปเดตจาก Toggle เดิม)
+        function changeTaskStatus(id, newStatus) {
+            const task = tasks.find(t => t.id.toString() === id.toString());
+            if (task) {
+                task.status = newStatus;
+                renderTasks(); // อัปเดตหน้าจอทันทีให้ดูลื่นไหล
+                syncTaskWithSheet('update', { id: task.id, status: task.status }); // ส่งเบื้องหลัง
+            }
+        }
+
+        // 5. ลบงาน
+        function deleteTask(id) {
+            if(confirm('คุณต้องการลบรายการนี้ใช่หรือไม่?')) {
+                tasks = tasks.filter(t => t.id.toString() !== id.toString());
+                renderTasks();
+                syncTaskWithSheet('delete', { id: id });
+            }
+        }
+
+        // 6. เพิ่มงานใหม่
+        document.getElementById('add-task-form').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const input = document.getElementById('new-task-input');
+            const text = input.value.trim();
+            
+            if (text) {
+                const newTask = {
+                    id: Date.now().toString(), // สร้าง ID ชั่วคราวไปก่อน
+                    text: text,
+                    status: ''
+                };
+                tasks.push(newTask);
+                renderTasks();
+                syncTaskWithSheet('add', newTask);
+                input.value = '';
+                
+                // เลื่อนลงไปล่างสุด
+                const list = document.getElementById('task-list');
+                setTimeout(() => list.scrollTop = list.scrollHeight, 100);
+            }
+        });
+
+        // === ระบบเตรียมสำหรับพรุ่งนี้ (บันทึกลงเครื่อง / LocalStorage) ===
+        let tomorrowItems = JSON.parse(localStorage.getItem('tomorrowItems')) || [];
+
+        function renderTomorrowItems() {
+            const list = document.getElementById('tomorrow-list');
+            list.innerHTML = '';
+            tomorrowItems.forEach((item, index) => {
+                const div = document.createElement('div');
+                div.className = 'flex items-center justify-between p-2 bg-orange-50/50 rounded text-sm group';
+                div.innerHTML = `
+                    <div class="flex items-center gap-2 cursor-pointer flex-grow" onclick="toggleTomorrowItem(${index})">
+                         <div class="w-4 h-4 rounded border flex items-center justify-center ${item.completed ? 'bg-orange-400 border-orange-400' : 'border-gray-300'}">
+                            ${item.completed ? '<i class="fas fa-check text-white text-[10px]"></i>' : ''}
+                        </div>
+                        <span class="${item.completed ? 'line-through text-gray-400' : 'text-gray-700'}">${item.text}</span>
+                    </div>
+                    <button onclick="deleteTomorrowItem(${index})" class="text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 focus:outline-none"><i class="fas fa-times"></i></button>
+                `;
+                list.appendChild(div);
+            });
+        }
+
+        function toggleTomorrowItem(index) {
+            tomorrowItems[index].completed = !tomorrowItems[index].completed;
+            saveTomorrowItems();
+        }
+
+        function deleteTomorrowItem(index) {
+            tomorrowItems.splice(index, 1);
+            saveTomorrowItems();
+        }
+
+        function saveTomorrowItems() {
+            localStorage.setItem('tomorrowItems', JSON.stringify(tomorrowItems));
+            renderTomorrowItems();
+        }
+
+        document.getElementById('add-tomorrow-form').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const input = document.getElementById('new-tomorrow-input');
+            if (input.value.trim()) {
+                tomorrowItems.push({ text: input.value.trim(), completed: false });
+                saveTomorrowItems();
+                input.value = '';
+            }
+        });
+
+        // === ระบบบันทึกย่อ (บันทึกลงเครื่อง / LocalStorage) ===
+        const notesArea = document.getElementById('notes-area');
+        notesArea.value = localStorage.getItem('dailyNotes') || '';
+        
+        notesArea.addEventListener('input', () => {
+            localStorage.setItem('dailyNotes', notesArea.value);
+        });
+
+        // จัดการเมื่อเปลี่ยนวันที่ผ่านปฏิทิน
+        document.getElementById('task-date-picker').addEventListener('change', (e) => {
+            if(e.target.value) {
+                const selectedDate = new Date(e.target.value);
+                currentDate = formatDateToSheet(selectedDate);
+                fetchTasks(); // โหลดข้อมูลของวันนั้นใหม่
+            }
+        });
+
+        // โหลดข้อมูลเมื่อเปิดหน้าเว็บ
+        window.onload = () => {
+            // ตั้งค่าวันที่เริ่มต้นเป็นวันนี้
+            const today = new Date();
+            currentDate = formatDateToSheet(today);
+            document.getElementById('task-date-picker').value = formatDateToInput(currentDate);
+
+            fetchTasks();
+            renderTomorrowItems();
+        };
+    </script>
+</body>
+</html>
